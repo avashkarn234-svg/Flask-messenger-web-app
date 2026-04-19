@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+   
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <title>Whiteboard messanger by Aavash karn</title>
+    <style>
+        /* This creates the three round corners and one pointy one */
+        .post-box {
+            background: white;
+            border: 2px solid black;
+            padding: 15px;
+            margin: 15px auto;
+            width: 85%;
+            /* Top-L, Top-R, Bottom-R (POINTY), Bottom-L */
+            border-radius: 20px 20px 0px 20px; 
+            box-shadow: 4px 4px 0px black;
+            word-wrap: break-word;
+        }
+        .time-text {
+            display: block;
+            font-size: 0.7em;
+            color: #666;
+            text-align: right;
+            margin-top: 10px;
+        }
+        #viewport { padding-bottom: 100px; }
+        .input-area {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            background: white;
+            padding: 15px;
+            border-top: 3px solid black;
+            display: flex;
+            box-sizing: border-box;
+        }
+        .input-area input {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid black;
+            border-radius: 5px;
+        }
+        .input-area button {
+            margin-left: 10px;
+            padding: 10px;
+            background: black;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body style="background-color: #f4f4f4; margin: 0; font-family: sans-serif;">
+
+    <div id="viewport" style="padding: 20px; padding-bottom: 100px;">
+        {% for msg in messages %}
+            <div class="post-box" style="background: white; padding: 15px; margin-bottom: 10px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                
+                {% if msg.content %}
+                    <p style="margin: 0 0 10px 0;">{{ msg.content }}</p>
+                {% endif %}
+
+                {% if msg.file_path %}
+                    <div class="media-content">
+                        {% if msg.file_type == 'image' %}
+                            <img src="{{ url_for('static', filename='uploads/' + msg.file_path) }}" style="max-width: 100%; border-radius: 5px;">
+                        {% elif msg.file_type == 'video' %}
+                            <video controls style="max-width: 100%; border-radius: 5px;">
+                                <source src="{{ url_for('static', filename='uploads/' + msg.file_path) }}" type="video/mp4">
+                                Your browser does not support the video tag.
+                            </video>
+                        {% endif %}
+                    </div>
+                {% endif %}
+
+                <span class="time-text" style="font-size: 0.7em; color: gray;">{{ msg.date_posted.strftime('%I:%M %p') }}</span>
+            </div>
+        {% endfor %}
+    </div>
+
+    <form class="input-area" method="POST" enctype="multipart/form-data" style="position: fixed; bottom: 0; width: 100%; background: white; padding: 15px; border-top: 1px solid #ddd; display: flex; gap: 10px;">
+        <input type="text" name="content" placeholder="Write something..." autocomplete="off" style="flex: 1;">
+        <input type="file" name="file" accept="image/*,video/*" style="width: 150px;">
+        <button type="submit">Post</button>
+    </form>
+
+    <script>
+        let currentCount = null;
+        function pollDatabase() {
+            fetch('/check_updates')
+                .then(res => res.json())
+                .then(data => {
+                    if (currentCount !== null && data.count !== currentCount) {
+                        window.location.reload();
+                    }
+                    currentCount = data.count;
+                });
+        }
+        setInterval(pollDatabase, 3000);
+    </script>
+    <script>
+      const source = new EventSource("/stream");
+
+source.onmessage = function(event) {
+    if (event.data === "DB_UPDATED") {
+        console.log("Database was updated!");
+        
+        // Update a specific element on your page instead of just an alert
+        const statusBox = document.getElementById("status");
+        if (statusBox) {
+            statusBox.innerText = "New Message Received!";
+            statusBox.style.color = "red";
+        }
+        
+        // Still try the alert for testing
+        window.alert("Database Updated!");
+    }
+};
+
+// Check for errors (like Cloudflare disconnecting)
+source.onerror = function() {
+    console.log("Connection lost. Retrying...");
+};
+    </script>
+</body>
+
+</html>
