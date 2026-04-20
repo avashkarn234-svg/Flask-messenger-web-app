@@ -25,7 +25,7 @@ def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not session.get('logged_in'):
-            return redirect(url_for('index'))
+            return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -53,9 +53,18 @@ def login():
     if request.method == "POST":
         password = request.form.get("password")
         if password == "@v@$hK423":
+            # --- THE MISSING LINK ---
+            session['logged_in'] = True  
+            # ------------------------
             return redirect(url_for('messenger'))
         return "<h1>Access Denied</h1><a href='/'>Back</a>"
+    
+    # Optional: If they are already logged in, don't show the login page
+    if session.get('logged_in'):
+        return redirect(url_for('messenger'))
+        
     return render_template("login.html")
+
 
 @app.route("/messenger", methods=["GET", "POST"])
 @login_required
