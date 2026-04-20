@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, Response, session
-
+from functools import wraps
+from secrets import token_hex
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import os
@@ -19,6 +20,17 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'mp4', 'mov'}
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 db = SQLAlchemy(app)
+app.secret_key= token_hex(24)
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('logged_in'):
+            return redirect(url_for('index'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+
 
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -46,6 +58,7 @@ def login():
     return render_template("login.html")
 
 @app.route("/messenger", methods=["GET", "POST"])
+@login_required
 def messenger():
     if request.method == "POST":
         content = request.form.get("content")
