@@ -20,7 +20,7 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'mp4', 'mov'}
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 db = SQLAlchemy(app)
-app.secret_key= token_hex(24)
+app.secret_key= "c150df3542374b09785458a888e86863e4d45b5236c71e46"
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
