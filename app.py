@@ -71,24 +71,7 @@ def messenger():
 def check_updates():
     return {"count": Post.query.count()}
 
-db_updated = False
 
-@app.route('/stream')
-def stream():
-    def event_stream():
-        global db_updated
-        while True:
-            if db_updated:
-                yield "data: DB_UPDATED\n\n"
-                db_updated = False
-            else:
-                # This is a 'comment' in SSE. 
-                # It keeps Cloudflare from timing out but JS ignores it.
-                yield ":keepalive\n\n"
-            
-            time.sleep(15) # Send a keepalive every 15s
-            
-    return Response(event_stream(), mimetype="text/event-stream")
 
 if __name__ == '__main__':
     # Use threaded=True so the stream doesn't block other routes
