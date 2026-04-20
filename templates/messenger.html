@@ -100,30 +100,7 @@
         }
         setInterval(pollDatabase, 3000);
     </script>
-    <script>
-      const source = new EventSource("/stream");
-
-source.onmessage = function(event) {
-    if (event.data === "DB_UPDATED") {
-        console.log("Database was updated!");
-        
-        // Update a specific element on your page instead of just an alert
-        const statusBox = document.getElementById("status");
-        if (statusBox) {
-            statusBox.innerText = "New Message Received!";
-            statusBox.style.color = "red";
-        }
-        
-        // Still try the alert for testing
-        window.alert("Database Updated!");
-    }
-};
-
-// Check for errors (like Cloudflare disconnecting)
-source.onerror = function() {
-    console.log("Connection lost. Retrying...");
-};
-    </script>
+    
 </body>
 
 </html>
