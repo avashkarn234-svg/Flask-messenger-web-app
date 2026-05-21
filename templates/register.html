@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Provision Cryptographic Identity</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .register-container {
+            background: #ffffff;
+            padding: 40px;
+            border: 3px solid #000000;
+            box-shadow: 6px 6px 0px #000000;
+            border-radius: 8px;
+            width: 400px;
+            box-sizing: border-box;
+        }
+        h2 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 1.8em;
+            color: #000000;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+        p.subtitle {
+            color: #666666;
+            font-size: 0.9em;
+            margin-bottom: 25px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            font-size: 0.85em;
+            text-transform: uppercase;
+        }
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #000000;
+            border-radius: 4px;
+            font-size: 1em;
+            box-sizing: border-box;
+            background: #fafafa;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            background: #00cc66;
+            color: #000000;
+            border: 2px solid #000000;
+            box-shadow: 3px 3px 0px #000000;
+            border-radius: 4px;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+        button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        #crypto-log {
+            margin-top: 15px;
+            padding: 10px;
+            background: #f4f7f6;
+            border: 1px dashed #000000;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.8em;
+            color: #333333;
+        }
+        .switch-route {
+            margin-top: 25px;
+            text-align: center;
+            font-size: 0.9em;
+            color: #555555;
+        }
+        .switch-route a {
+            color: #00cc66;
+            text-decoration: none;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="register-container">
+        <h2>Identity Generation</h2>
+        <p class="subtitle">Deploy localized public/private node credentials</p>
+
+        <form id="registration-form" method="POST" onsubmit="executeClientSideKeyGeneration(event)">
+            <div class="form-group">
+                <label for="username">Desired Username Handle</label>
+                <input type="text" id="username" name="username" placeholder="Choose identity handle..." required autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label for="password">Account Sign-In Passphrase</label>
+                <input type="password" id="password" name="password" placeholder="Choose complex passphrase..." required>
+            </div>
+
+            <input type="hidden" id="public_key" name="public_key">
+            <input type="hidden" id="encrypted_private_key" name="encrypted_private_key">
+
+            <button type="submit" id="submit-trigger-btn">Compile &amp; Register Credentials</button>
+        </form>
+
+        <div id="crypto-log">System status: Ready to generate cryptosystem metadata...</div>
+
+        <div class="switch-route">
+            Already have an identity token? <a href="/">Log In Here</a>
+        </div>
+    </div>
+
+    <script>
+        async function executeClientSideKeyGeneration(event) {
+            event.preventDefault();
+            const logPanel = document.getElementById('crypto-log');
+            const submitButton = document.getElementById('submit-trigger-btn');
+            const plaintextPassword = document.getElementById('password').value;
+            
+            if (plaintextPassword.length < 6) {
+                alert("Passwords must contain at least 6 characters.");
+                return;
+            }
+
+            submitButton.disabled = true;
+            logPanel.innerText = "[1/4] Running entropy collection loops...";
+
+            try {
+                logPanel.innerText = "[2/4] Deriving ECDH P-256 pair...";
+                const keyPair = await window.crypto.subtle.generateKey(
+                    { name: "ECDH", namedCurve: "P-256" },
+                    true,
+                    ["deriveKey", "deriveBits"]
+                );
+
+                const publicJWK = await window.crypto.subtle.exportKey("jwk", keyPair.publicKey);
+                document.getElementById('public_key').value = JSON.stringify(publicJWK);
+
+                logPanel.innerText = "[3/4] Constructing zero-knowledge wrapping layer...";
+                const encoder = new TextEncoder();
+                const saltyVectorBuffer = encoder.encode(plaintextPassword + "-system-wide-ecdh-salt-vector");
+                const computedHashBuffer = await window.crypto.subtle.digest('SHA-256', saltyVectorBuffer);
+                
+                const localSymmetricKey = await window.crypto.subtle.importKey(
+                    'raw', computedHashBuffer, { name: 'AES-GCM' }, false, ['encrypt']
+                );
+
+                const privateJWK = await window.crypto.subtle.exportKey("jwk", keyPair.privateKey);
+                const stringifiedPrivateJWK = JSON.stringify(privateJWK);
+                const initializationVector = window.crypto.getRandomValues(new Uint8Array(12));
+
+                const encryptedRawPrivateData = await window.crypto.subtle.encrypt(
+                    { name: 'AES-GCM', iv: initializationVector },
+                    localSymmetricKey,
+                    encoder.encode(stringifiedPrivateJWK)
+                );
+
+                const armoredPayloadBlock = {
+                    iv: btoa(String.fromCharCode(...initializationVector)),
+                    cipher: btoa(String.fromCharCode(...new Uint8Array(encryptedRawPrivateData)))
+                };
+
+                document.getElementById('encrypted_private_key').value = JSON.stringify(armoredPayloadBlock);
+                logPanel.innerText = "[4/4] Cryptosystem synchronized. Registering...";
+
+                document.getElementById('registration-form').submit();
+            } catch (err) {
+                console.error(err);
+                logPanel.innerText = "🚨 Generation Aborted: " + err.message;
+                submitButton.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
