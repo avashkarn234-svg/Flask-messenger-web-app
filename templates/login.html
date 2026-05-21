@@ -1,18 +1,134 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
-    <title>Gateway</title>
+    <title>Secure Workspace Access - Gateway</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .login-container {
+            background: #ffffff;
+            padding: 40px;
+            border: 3px solid #000000;
+            box-shadow: 6px 6px 0px #000000;
+            border-radius: 8px;
+            width: 360px;
+            box-sizing: border-box;
+        }
+        h2 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 1.8em;
+            color: #000000;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: -0.5px;
+        }
+        p.subtitle {
+            color: #666666;
+            font-size: 0.9em;
+            margin-bottom: 25px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            font-size: 0.85em;
+            text-transform: uppercase;
+            color: #000000;
+        }
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #000000;
+            border-radius: 4px;
+            font-size: 1em;
+            box-sizing: border-box;
+            background: #fafafa;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            background: #000000;
+            color: #ffffff;
+            border: none;
+            border-radius: 4px;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+        .flash-messages {
+            background: #ffebe9;
+            border: 2px solid #ff3b30;
+            color: #ff3b30;
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+        .switch-route {
+            margin-top: 25px;
+            text-align: center;
+            font-size: 0.9em;
+            color: #555555;
+        }
+        .switch-route a {
+            color: #00cc66;
+            text-decoration: none;
+            font-weight: bold;
+        }
+    </style>
 </head>
 <body>
-    <div class="container">
+    <div class="login-container">
         <h2>System Access</h2>
-        <form method="POST">
-            <input type="password" name="password" placeholder="Enter Code..." required>
-            <br><br>
-            <button type="submit">Authenticate</button>
+        <p class="subtitle">Authenticate node token identity parameters</p>
+
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for message in messages %}
+                        <div>⚠️ {{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" onsubmit="captureSecretCredentials(event)" id="auth-form">
+            <div class="form-group">
+                <label for="username">Username Handle</label>
+                <input type="text" id="username" name="username" placeholder="e.g., operator_alpha" required autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label for="password">Security Access Key</label>
+                <input type="password" id="password" name="password" placeholder="••••••••••••" required>
+            </div>
+            <button type="submit">Unlock Workspace</button>
         </form>
+
+        <div class="switch-route">
+            New node deployment? <a href="/register">Provision Account</a>
+        </div>
     </div>
+
+    <script>
+        function captureSecretCredentials(event) {
+            const rawPasswordValue = document.getElementById('password').value;
+            sessionStorage.setItem('node_raw_secret', rawPasswordValue);
+        }
+    </script>
 </body>
 </html>
