@@ -1,106 +1,231 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-   
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
-    <title>Whiteboard messanger by Aavash karn</title>
+    <title>Communication Center</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        /* This creates the three round corners and one pointy one */
-        .post-box {
-            background: white;
-            border: 2px solid black;
-            padding: 15px;
-            margin: 15px auto;
-            width: 85%;
-            /* Top-L, Top-R, Bottom-R (POINTY), Bottom-L */
-            border-radius: 20px 20px 0px 20px; 
-            box-shadow: 4px 4px 0px black;
-            word-wrap: break-word;
-        }
-        .time-text {
-            display: block;
-            font-size: 0.7em;
-            color: #666;
-            text-align: right;
-            margin-top: 10px;
-        }
-        #viewport { padding-bottom: 100px; }
-        .input-area {
-            position: fixed;
-            bottom: 0;
-            width: 100%;
-            background: white;
-            padding: 15px;
-            border-top: 3px solid black;
-            display: flex;
-            box-sizing: border-box;
-        }
-        .input-area input {
-            flex: 1;
-            padding: 10px;
-            border: 2px solid black;
-            border-radius: 5px;
-        }
-        .input-area button {
-            margin-left: 10px;
-            padding: 10px;
-            background: black;
-            color: white;
-            border: none;
-            border-radius: 5px;
-        }
+        body { height: 100vh; display: flex; overflow: hidden; }
+        .sidebar { width: 280px; border-right: 2px solid #333; overflow-y: auto; background: #fff; }
+        .chat-area { flex: 1; display: flex; flex-direction: column; height: 100vh; background: #fafafa; }
+        .msg-viewport { flex: 1; overflow-y: auto; padding: 20px; padding-bottom: 100px; }
+        .input-panel { position: fixed; bottom: 0; right: 0; width: calc(100% - 280px); background: #fff; border-top: 2px solid #333; padding: 15px; z-index: 10; }
+        .cipher-node-block { background: #f0f0f0; font-family: monospace; word-break: break-all; padding: 10px; border-radius: 5px; border: 1px solid #ddd; }
     </style>
 </head>
-<body style="background-color: #f4f4f4; margin: 0; font-family: sans-serif;">
+<body>
 
-    <div id="viewport" style="padding: 20px; padding-bottom: 100px;">
-        {% for msg in messages %}
-            <div class="post-box" style="background: white; padding: 15px; margin-bottom: 10px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-                
-                {% if msg.content %}
-                    <p style="margin: 0 0 10px 0;">{{ msg.content }}</p>
-                {% endif %}
+    <div class="sidebar p-3 d-flex flex-column gap-3">
+        <div>
+            <h5 class="fw-bold m-0">👋 @{{ session['username'] }}</h5>
+            <span class="badge bg-dark text-uppercase">{{ session['role'] }}</span>
+            <div class="mt-2"><a href="/logout" class="text-danger fw-bold small text-decoration-none">Disconnect</a></div>
+        </div>
+        
+        <div class="alert alert-info small fw-bold p-2 m-0 text-center" id="crypto-status">⏳ Syncing keys...</div>
 
-                {% if msg.file_path %}
-                    <div class="media-content">
-                        {% if msg.file_type == 'image' %}
-                            <img src="{{ url_for('static', filename='uploads/' + msg.file_path) }}" style="max-width: 100%; border-radius: 5px;">
-                        {% elif msg.file_type == 'video' %}
-                            <video controls style="max-width: 100%; border-radius: 5px;">
-                                <source src="{{ url_for('static', filename='uploads/' + msg.file_path) }}" type="video/mp4">
-                                Your browser does not support the video tag.
-                            </video>
-                        {% endif %}
-                    </div>
-                {% endif %}
-
-                <span class="time-text" style="font-size: 0.7em; color: gray;">{{ msg.date_posted.strftime('%I:%M %p') }}</span>
+        <div>
+            <h6 class="text-muted fw-bold text-uppercase small">Channels</h6>
+            <div class="nav flex-column nav-pills gap-1">
+                {% for ch in channels %}
+                    <a href="{{ url_for('messenger', channel_id=ch.id) }}" class="nav-link text-dark {% if not is_dm and current_channel and current_channel.id == ch.id %}active text-white bg-dark{% endif %}"># {{ ch.name }}</a>
+                {% endfor %}
             </div>
-        {% endfor %}
+            {% if session['role'] in ['admin', 'moderator'] %}
+                <form action="/channel/create" method="POST" class="mt-2 d-flex gap-1">
+                    <input type="text" name="name" placeholder="New room..." required class="form-control form-control-sm border-dark">
+                    <button type="submit" class="btn btn-dark btn-sm">+</button>
+                </form>
+            {% endif %}
+        </div>
+
+        <div>
+            <h6 class="text-muted fw-bold text-uppercase small">Direct Messages</h6>
+            <div class="nav flex-column nav-pills gap-1">
+                {% for usr in users %}
+                    <a href="{{ url_for('messenger', recipient_id=usr.id) }}" class="nav-link text-dark {% if is_dm and recipient and recipient.id == usr.id %}active text-white bg-dark{% endif %}">✉️ {{ usr.username }}</a>
+                {% endfor %}
+            </div>
+        </div>
     </div>
 
-    <form class="input-area" method="POST" enctype="multipart/form-data" style="position: fixed; bottom: 0; width: 100%; background: white; padding: 15px; border-top: 1px solid #ddd; display: flex; gap: 10px;">
-        <input type="text" name="content" placeholder="Write something..." autocomplete="off" style="flex: 1;">
-        <input type="file" name="file" accept="image/*,video/*" style="width: 150px;">
-        <button type="submit">Post</button>
-    </form>
+    <div class="chat-area">
+        <div class="navbar navbar-expand bg-white border-bottom border-dark px-4 py-2 d-flex justify-content-between">
+            <h5 class="fw-bold m-0">{% if is_dm %}Direct: @{{ recipient.username }}{% else %}Channel: #{{ current_channel.name if current_channel else '' }}{% endif %}</h5>
+            <form method="GET" class="d-flex gap-1">
+                {% if not is_dm and current_channel %}<input type="hidden" name="channel_id" value="{{ current_channel.id }}">{% endif %}
+                <input type="text" name="search" placeholder="Search tokens..." value="{{ search_query }}" class="form-control form-control-sm border-dark">
+                <button type="submit" class="btn btn-sm btn-dark">Filter</button>
+            </form>
+        </div>
 
+        <div class="msg-viewport" id="viewport">
+            {% for msg in messages %}
+                <div class="card border-dark shadow-sm mb-3 mx-auto p-3" style="max-width: 850px; border-radius: 12px;">
+                    <div class="fw-bold small mb-1">@{{ msg.user.username }}</div>
+                    <div class="cipher-node-block mb-2" id="payload-{{ msg.id }}" data-raw="{{ msg.content }}">{{ msg.content }}</div>
+
+                    {% if msg.file_path %}
+                        <div class="p-2 border border-secondary bg-light rounded text-center my-2">
+                            {% if msg.file_type == 'image' %}
+                                <img src="{{ url_for('static', filename='uploads/' + msg.file_path) }}" class="img-fluid rounded" style="max-height: 250px;">
+                            {% elif msg.file_type == 'video' %}
+                                <video controls class="w-100 rounded" style="max-height: 250px;"><source src="{{ url_for('static', filename='uploads/' + msg.file_path) }}" type="video/mp4"></video>
+                            {% else %}
+                                <a href="{{ url_for('static', filename='uploads/' + msg.file_path) }}" download class="fw-bold text-primary">📄 Download Binary: {{ msg.file_path }}</a>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+
+                    <div class="d-flex justify-content-between align-items-center mt-1 text-muted small" style="font-size: 0.75em;">
+                        <span>Sent: {{ msg.date_posted.strftime('%I:%M %p UTC') }}</span>
+                        {% if msg.user_id == session['user_id'] or session['role'] in ['admin', 'moderator'] %}
+                            <form action="{{ url_for('delete_post', post_id=msg.id) }}" method="POST" class="m-0">
+                                <button type="submit" class="btn btn-link p-0 text-danger text-decoration-underline small">Delete</button>
+                            </form>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <form class="input-panel d-flex gap-2 align-items-center" id="execution-transit-form" method="POST" enctype="multipart/form-data" onsubmit="return encryptAndTransmitDataBlock(event)">
+            <input type="text" id="plain-input-field" placeholder="Compose encrypted data packet..." autocomplete="off" class="form-control border-dark py-2">
+            <input type="hidden" name="content" id="hidden-cipher-transport-node">
+            <input type="file" name="file" class="form-control form-control-sm border-dark" style="max-width: 220px;">
+            <button type="submit" class="btn btn-dark py-2 px-4 fw-bold">Transmit</button>
+        </form>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script>
-        let currentCount = null;
-        function pollDatabase() {
-            fetch('/check_updates')
-                .then(res => res.json())
-                .then(data => {
-                    if (currentCount !== null && data.count !== currentCount) {
-                        window.location.reload();
-                    }
-                    currentCount = data.count;
-                });
-        }
-        setInterval(pollDatabase, 3000);
-    </script>
-    
-</body>
+        const METADATA_IS_DM = {{ 'true' if is_dm else 'false' }};
+        const METADATA_ROOM_ID = {{ recipient.id if is_dm else (current_channel.id if current_channel else 0) }};
+        const METADATA_MY_ID = {{ session['user_id'] }};
+        let activeDecryptedNodePrivateKey = null, runningSymmetricStreamSessionKey = null;
 
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/sw.js').catch(err => console.error(err));
+            });
+        }
+
+        async function requestAlertPrivileges() {
+            if ('Notification' in window && Notification.permission !== "granted" && Notification.permission !== "denied") {
+                await Notification.requestPermission();
+            }
+        }
+
+        async function unpackAccountWrappingKey(passwordString) {
+            const encoder = new TextEncoder();
+            const hash = await crypto.subtle.digest('SHA-256', encoder.encode(passwordString + "-system-wide-ecdh-salt-vector"));
+            return await crypto.subtle.importKey('raw', hash, {name: 'AES-GCM'}, false, ['decrypt']);
+        }
+
+        async function bootstrapLocalCryptosystem() {
+            await requestAlertPrivileges();
+            const rawPassthroughSecret = sessionStorage.getItem('node_raw_secret');
+            if (!rawPassthroughSecret) {
+                document.getElementById('crypto-status').className = "alert alert-danger small p-2 m-0";
+                document.getElementById('crypto-status').innerText = "❌ Session Expired.";
+                return;
+            }
+            try {
+                const response = await fetch('/api/my_private_key');
+                const pkg = await response.json();
+                const wrappingKey = await unpackAccountWrappingKey(rawPassthroughSecret);
+                const env = JSON.parse(pkg.encrypted_private_key);
+                
+                const rawJWK = await crypto.subtle.decrypt(
+                    { name: 'AES-GCM', iv: new Uint8Array(atob(env.iv).split("").map(c => c.charCodeAt(0))) },
+                    wrappingKey, new Uint8Array(atob(env.cipher).split("").map(c => c.charCodeAt(0)))
+                );
+                
+                activeDecryptedNodePrivateKey = await crypto.subtle.importKey(
+                    "jwk", JSON.parse(new TextDecoder().decode(rawJWK)), { name: "ECDH", namedCurve: "P-256" }, true, ["deriveKey"]
+                );
+
+                if (METADATA_IS_DM) await synchronizeAsymmetricDirectMessageKey();
+                else await synchronizeMultiPartyChannelKey();
+            } catch (err) {
+                document.getElementById('crypto-status').className = "alert alert-danger small p-2 m-0";
+                document.getElementById('crypto-status').innerText = "❌ Crypto Link Mismatch";
+            }
+        }
+
+        async function synchronizeAsymmetricDirectMessageKey() {
+            const res = await fetch(`/api/crypto_bootstrap/${METADATA_ROOM_ID}`);
+            const identity = await res.json();
+            const peerKey = await crypto.subtle.importKey("jwk", JSON.parse(identity.public_key), { name: "ECDH", namedCurve: "P-256" }, true, []);
+            runningSymmetricStreamSessionKey = await crypto.subtle.deriveKey({ name: "ECDH", public: peerKey }, activeDecryptedNodePrivateKey, { name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+            flagCryptosystemAsConnected("🔒 Asymmetric Link Active");
+        }
+
+        async function synchronizeMultiPartyChannelKey() {
+            const res = await fetch(`/api/channel_keys/${METADATA_ROOM_ID}`);
+            const dataPacket = await res.json();
+            if (dataPacket.keys[METADATA_MY_ID]) {
+                const env = JSON.parse(dataPacket.keys[METADATA_MY_ID]);
+                runningSymmetricStreamSessionKey = await crypto.subtle.importKey("raw", new Uint8Array(atob(env.raw).split("").map(c => c.charCodeAt(0))), { name: "AES-GCM" }, true, ["encrypt", "decrypt"]);
+            } else {
+                runningSymmetricStreamSessionKey = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+                const rawBytes = await crypto.subtle.exportKey("raw", runningSymmetricStreamSessionKey);
+                const base64Str = btoa(String.fromCharCode(...new Uint8Array(rawBytes)));
+                const payloadSyncList = dataPacket.users.map(u => ({ user_id: u.id, encrypted_key_block: JSON.stringify({ raw: base64Str }) }));
+                await fetch(`/api/channel_keys/${METADATA_ROOM_ID}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keys: payloadSyncList }) });
+            }
+            flagCryptosystemAsConnected("🔒 Symmetric Cluster Active");
+        }
+
+        function flagCryptosystemAsConnected(statusText) {
+            const ind = document.getElementById('crypto-status');
+            ind.className = "alert alert-success small p-2 m-0";
+            ind.innerText = statusText;
+            executeViewportDecryptionLoop();
+        }
+
+        async function encryptAndTransmitDataBlock(event) {
+            event.preventDefault();
+            const plainField = document.getElementById('plain-input-field');
+            if (plainField.value && runningSymmetricStreamSessionKey) {
+                const iv = crypto.getRandomValues(new Uint8Array(12));
+                const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, runningSymmetricStreamSessionKey, new TextEncoder().encode(plainField.value));
+                document.getElementById('hidden-cipher-transport-node').value = "CIPHER__" + btoa(JSON.stringify({ iv: btoa(String.fromCharCode(...iv)), cipher: btoa(String.fromCharCode(...new Uint8Array(cipher))) }));
+            }
+            document.getElementById('execution-transit-form').submit();
+        }
+
+        async function executeViewportDecryptionLoop() {
+            document.querySelectorAll('.cipher-node-block').forEach(async node => {
+                const raw = node.getAttribute('data-raw');
+                if (raw && raw.startsWith("CIPHER__") && runningSymmetricStreamSessionKey) {
+                    try {
+                        const parsed = JSON.parse(atob(raw.substring(8)));
+                        const dec = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: new Uint8Array(atob(parsed.iv).split("").map(c => c.charCodeAt(0))) }, runningSymmetricStreamSessionKey, new Uint8Array(atob(parsed.cipher).split("").map(c => c.charCodeAt(0))));
+                        node.innerText = new TextDecoder().decode(dec);
+                        node.style.background = "#e6ffed";
+                    } catch (e) {
+                        node.innerText = "❌ [Decryption Failure]";
+                        node.style.color = "red";
+                    }
+                }
+            });
+        }
+
+        window.addEventListener('DOMContentLoaded', bootstrapLocalCryptosystem);
+
+        const socketConnection = io();
+        socketConnection.on('db_update', function(data) {
+            let matches = data.type === 'system' || (!METADATA_IS_DM && data.type === 'channel' && data.id === METADATA_ROOM_ID) || (METADATA_IS_DM && data.type === 'dm' && ((data.sender === METADATA_MY_ID && data.recipient === METADATA_ROOM_ID) || (data.sender === METADATA_ROOM_ID && data.recipient === METADATA_MY_ID)));
+            
+            if (data.sender !== METADATA_MY_ID && document.hidden && 'Notification' in window && Notification.permission === "granted") {
+                navigator.serviceWorker.ready.then(reg => {
+                    reg.showNotification("Workspace Dispatch", { body: "Incoming end-to-end secured payload received.", icon: '/static/uploads/favicon.ico', tag: 'e2ee-chat-alert', renotify: true });
+                });
+            }
+            if (matches) window.location.reload();
+        });
+    </script>
+</body>
 </html>
